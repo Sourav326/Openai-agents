@@ -1,6 +1,7 @@
 import "dotenv/config"
 import { Agent,run,tool} from "@openai/agents";
 import {z} from "zod"
+import axios from "axios";
 
 //creating tool START ************************************
 const getWeatherTool = tool({
@@ -10,7 +11,9 @@ const getWeatherTool = tool({
         city:z.string().describe('name of the city'),
     }),
     execute: async function ({city}){
-        return `The weather of ${city} is 26`
+        const url = `https://wttr.in/${city.toLowerCase()}?format=%C+%t`
+        const response  = await axios.get(url);
+        return `The weather of ${city} is ${response.data}`
     },
 })
 //creating tool END ************************************
@@ -31,4 +34,4 @@ async function main(query=""){
     const result = await run(agent,query)//run used to run the agent , takes agent details, user input
     console.log(result.finalOutput);
 }
- main("what is the weather of faridabad today?")
+ main("what is the weather of himachal,delhi, mumbai,gurgaon today?")
