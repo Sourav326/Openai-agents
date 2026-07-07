@@ -1,23 +1,36 @@
 import "dotenv/config"
-import { Agent,run,tool} from "@openai/agents";
+import mongoose from "mongoose"
+import { Agent, run, tool } from "@openai/agents"
 import {z} from "zod"
-import axios from "axios";
 import nodemailer from "nodemailer";
 
-//creating tool START ************************************
-const getWeatherTool = tool({
-    name:"Get Weather",
-    description: "Returns the current weather information for the given city",
+//making connection with database
+const connectDb = async () => {
+    await mongoose.connect(process.env.DATABASE_URL)
+}
+
+//create tool
+const connectToDatabase = tool({
+    name: "get_collection_data",
+
+    description:
+        "Fetch all documents from a MongoDB collection.",
+
     parameters: z.object({
-        city:z.string().describe('name of the city'),
+        collection: z.string()
     }),
-    execute: async function ({city}){
-        const url = `https://wttr.in/${city.toLowerCase()}?format=%C+%t`
-        const response  = await axios.get(url);
-        return `The weather of ${city} is ${response.data}`
-    },
-})
-//creating tool END ************************************
+
+    execute: async ({ collection }) => {
+        const data = await mongoose.connection.db
+            .collection(collection)
+            .find({})
+            .limit(20)
+            .toArray();
+
+        return data;
+    }
+});
+
 
 
 const transporter = nodemailer.createTransport({
@@ -30,7 +43,7 @@ const transporter = nodemailer.createTransport({
 
 //creating send mail tool START ***********************
 const sendMail = tool({
-    name:"Send Email",
+    name:"send_email",
     description:"Sends email to user",
     parameters: z.object({
         email: z.string().describe("email on which email have to send"),
@@ -55,20 +68,37 @@ const sendMail = tool({
 })
 //creating send mail tool END ***********************
 
-
-
-//creating agent START *****************************
+//create Agent
 const agent = new Agent({
-    name:"Weather Agent",//required
-    instructions:"You are an expert weather agent that helps user to tell weather reports",//required
-    model:"gpt-4o-mini",//optional
-    tools:[getWeatherTool,sendMail]//optional, takes array of tools
+    name:"coding expert agent",
+    instructions: `
+    You are a database assistant.
+    
+    When the user asks for data,
+    use the get_collection_data tool.
+    
+    When the user asks to email the data,
+    use the send_email tool.
+    `,
+    model:"gpt-4o-mini",
+    tools: [connectToDatabase,sendMail]
 })
-//creating agent END *****************************
 
-//calling the agent
+//run agent
 async function main(query=""){
-    const result = await run(agent,query)//run used to run the agent , takes agent details, user input
+    const result = await run(agent,query)
     console.log(result.finalOutput);
 }
- main("what is the weather of noida, indore today. also give me the history of each city and send me over the email to lalitiwari1985@gmail.com")
+
+//call main 
+async function start() {
+
+    await connectDb();
+
+    await main(
+        "Get all users from the users collection and send all the user details to my email souravchauhan1964@gmail.com"
+    );
+
+}
+
+start();
